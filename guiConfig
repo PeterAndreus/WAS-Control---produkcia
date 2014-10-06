@@ -1,0 +1,423 @@
+#!/bin/bash
+
+ejbMenu(){
+  clear
+  
+  EJB_CONFIG_WAS_SVN="$PATH_TO_EJB_FILES/ejbConfigWas.txt"
+  EJB_CONFIG_PORTAL_SVN="$PATH_TO_EJB_FILES/ejbConfigPortal.txt"
+  
+  echo "1. Skontrolovat EJB config WAS		"
+  echo "2. Skontrolovat EJB config PORTAL	"
+  echo "								0. back"
+  echo "							       00. exit"
+  echo -n "Vyber moznost: "
+  read -n1 ejbMenuOption
+  clear
+  case $ejbMenuOption in
+    1 ) controlEJBCustomProperties "was"; ejbMenu  ;;
+    2 ) controlEJBCustomProperties "portal"; ejbMenu  ;;
+    3 ) createEjbCustomPropFile; ejbMenu  ;;
+    4 ) createEjbCustomPropFilePortal; ejbMenu ;;
+    0) clear; menu ;;
+    00) clear; exit ;;
+    "")  ;;
+    *) clear; echo "Chybne zadany vstup"; sleep 1; ejbMenu ;;
+  esac
+}
+
+controlEJBCustomProperties(){
+  if [ "$1" == "portal" ] 
+  then
+    local ejbResourceXmlStart=$(ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "cat $GLOBAL_WAS_SERVER_DIR/../wp_profile/config/cells/$GLOBAL_PORTAL_CELL/resources.xml | grep 'RemoteEJBLocatorReference' -n | cut -d ':' -f1")
+    local tmpFile="$EJB_CONFIG_PORTAL_SVN"
+    local resourceFileSize=$(ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "cat $GLOBAL_WAS_SERVER_DIR/../wp_profile/config/cells/$GLOBAL_PORTAL_CELL/resources.xml | wc -l")
+    local ejbResourceXmlEnd=$(ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "cat $GLOBAL_WAS_SERVER_DIR/../wp_profile/config/cells/$GLOBAL_PORTAL_CELL/resources.xml | sed \"$ejbResourceXmlStart,$resourceFileSize!d\" | grep '</propertySet>' -n | cut -d ':' -f1 | head -n 1")
+    let "ejbResourceXmlEnd=$(echo $ejbResourceXmlEnd) + $(echo $ejbResourceXmlStart)"
+    local EJB_CONGIF_FULL_FROM_RESOURCE_XML=$(ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "cat $GLOBAL_WAS_SERVER_DIR/../wp_profile/config/cells/$GLOBAL_PORTAL_CELL/resources.xml | sed \"$ejbResourceXmlStart,$ejbResourceXmlEnd!d\" | sed 's/ //g'")
+  else
+    local ejbResourceXmlStart=$(ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "cat $GLOBAL_WAS_SERVER_DIR/profiles/$GLOBAL_WAS_PROFILE/config/cells/$GLOBAL_WAS_CELL/resources.xml | grep 'RemoteEJBLocatorReference' -n | cut -d ':' -f1")
+    local tmpFile="$EJB_CONFIG_WAS_SVN"
+    local resourceFileSize=$(ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "cat $GLOBAL_WAS_SERVER_DIR/profiles/$GLOBAL_WAS_PROFILE/config/cells/$GLOBAL_WAS_CELL/resources.xml | wc -l")
+    local ejbResourceXmlEnd=$(ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "cat $GLOBAL_WAS_SERVER_DIR/profiles/$GLOBAL_WAS_PROFILE/config/cells/$GLOBAL_WAS_CELL/resources.xml | sed \"$ejbResourceXmlStart,$resourceFileSize!d\" | grep '</propertySet>' -n | cut -d ':' -f1 | head -n 1")
+    let "ejbResourceXmlEnd=$(echo $ejbResourceXmlEnd) + $(echo $ejbResourceXmlStart)"
+    local EJB_CONGIF_FULL_FROM_RESOURCE_XML=$(ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "cat $GLOBAL_WAS_SERVER_DIR/profiles/$GLOBAL_WAS_PROFILE/config/cells/$GLOBAL_WAS_CELL/resources.xml | sed \"$ejbResourceXmlStart,$ejbResourceXmlEnd!d\" | sed 's/ //g' ")
+  fi
+  
+  local err_values=0;
+  local ok_values=0;
+  local addEJBCustomPropertyValues=();
+  local removeEJBCustomPropertyValues=();
+  local editEJBCustomPorpertyValues=();
+  
+  for i in $(echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep 'resourceProperties')
+  do 
+    local remoteValue=$( echo "$i"  | sed 's/value="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    local remoteName=$(echo "$i"  | sed 's/name="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    local localValue=$( cat $tmpFile | grep $remoteName | cut -d"|" -f4)
+     
+    if [ "$1" == "portal" ] 
+    then
+      local correctedLocalValue=$(echo "$localValue"| sed "s#$LOCAL_EJB_URL#$REMOTE_EJB_URL_PORTAL#g")
+    else
+      local correctedLocalValue=$(echo "$localValue"| sed "s#$LOCAL_EJB_URL#$REMOTE_EJB_URL_WAS#g")
+    fi
+     #echo "-$correctedRemoteValue-"
+     if [[ "$remoteValue" == "$correctedLocalValue" ]]
+     then
+	#echo -e "$BLUE Hodnoty sa zhoduju $NC"
+	let "ok_values=$ok_values + 1"
+     else
+	
+	echo "Name: $remoteName"
+	echo "Value Local: -$correctedLocalValue-"
+	echo "Value Remote: -$remoteValue-"
+	if [ "$localValue" == "" ]
+	then
+	    removeEJBCustomPropertyValues=("${removeEJBCustomPropertyValues[@]}" "$remoteName")
+	    echo -e "$RED Hodnota je nepotrebna $NC"
+	else
+	    editEJBCustomPorpertyValues=("${editEJBCustomPorpertyValues[@]}" "$remoteName")
+	    echo -e "$RED Hodnoty sa nezhoduju $NC"
+	fi
+	let "err_values=$err_values + 1"
+     fi
+  done
+  
+  for i in $(cat $tmpFile |sed 's/ //g')
+  do 
+    local localName=$( echo $i | cut -d"|" -f3)
+    local localValue=$( echo $i | cut -d"|" -f4)
+    local remoteValue=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$localName"  | sed 's/value="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    if [ "$1" == "portal" ] 
+    then
+      local correctedRemoteValue=$(echo "$remoteValue"| sed "s#$REMOTE_EJB_URL_PORTAL#$LOCAL_EJB_URL#g")
+    else
+      local correctedRemoteValue=$(echo "$remoteValue"| sed "s#$REMOTE_EJB_URL_WAS#$LOCAL_EJB_URL#g")
+    fi
+     #echo "-$correctedRemoteValue-"
+     if [[ "$localValue" != "$correctedRemoteValue" ]]
+     then
+	if [ "$correctedRemoteValue" == "" ]
+	then
+	  echo "Name Local: $localName"
+	  echo "Value Local: $localValue"
+	  echo "Value Remote: $remoteValue"
+	  addEJBCustomPropertyValues=("${addEJBCustomPropertyValues[@]}" "$localName")
+	  echo -e "$RED Hodnota je nevyplnena $NC"
+	  let "err_values=$err_values + 1"
+	fi
+     fi
+  done
+  echo
+  echo
+  echo "Statistics WAS EJB: "
+  echo -e "EJB v poriadku:$BLUE $ok_values $NC"
+  echo -e "Nekompatibilne EJB:$RED $err_values $NC"
+  echo
+  echo
+  
+  echo "1. Pridanie EJBconfigov 		2. Odstranenie EJBconfigov"
+  echo "3. Uprava zmien v EJBconfigoch	"
+  echo "								0. back"
+  echo "							       00. exit"
+  echo -n "Vyber moznost: "
+  read -n1 ejbSubMenuOption
+  case $ejbSubMenuOption in
+    1 ) addEJBCustomProperty addEJBCustomPropertyValues[@] $1;  ;;
+    2 ) removeEJBCustomProperty removeEJBCustomPropertyValues[@] $1 ;;
+    3 ) updateEJBCustomProperty editEJBCustomPorpertyValues[@] $1; ;;   
+    0) clear; ejbMenu ;;
+    00) clear; exit ;;
+    "")  ;;
+    *) clear; echo "Chybne zadany vstup"; sleep 1; ejbMenu ;;
+  esac
+}
+
+findJ2EEResourcePorpertyWAS(){
+  let LINE_NUM=$(ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "cat $GLOBAL_WAS_SERVER_DIR/profiles/$GLOBAL_WAS_PROFILE/config/cells/$GLOBAL_WAS_CELL/resources.xml | grep 'RemoteEJBLocatorReference' -n | cut -d ':' -f1")
+  let "LINE_NUM_1=$(echo $LINE_NUM) +1"
+  J2EE_ENV_ENTRY=$(ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "cat $GLOBAL_WAS_SERVER_DIR/profiles/$GLOBAL_WAS_PROFILE/config/cells/$GLOBAL_WAS_CELL/resources.xml | sed -n "$(echo $LINE_NUM_1)p" | cut -d'\"' -f2 ")
+}
+
+findJ2EEResourcePorpertyPortal(){
+  let LINE_NUM=$(ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "cat $GLOBAL_WAS_SERVER_DIR/../wp_profile/config/cells/$GLOBAL_PORTAL_CELL/resources.xml | grep 'RemoteEJBLocatorReference' -n | cut -d ':' -f1")
+  let "LINE_NUM_1=$(echo $LINE_NUM) +1"
+  J2EE_ENV_ENTRY=$(ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "cat $GLOBAL_WAS_SERVER_DIR/../wp_profile/config/cells/$GLOBAL_PORTAL_CELL/resources.xml | sed -n "$(echo $LINE_NUM_1)p" | cut -d'\"' -f2 ")
+}
+
+createEjbCustomPropFile(){
+  vi $EJB_CONFIG_WAS_SVN
+}
+
+createEjbCustomPropFilePortal(){
+  vi $EJB_CONFIG_PORTAL_SVN
+}
+
+addEJBCustomPropertyWAS(){
+  findJ2EEResourcePorpertyWAS
+  declare -a argAry1=("${!1}")
+  local datum=$(date '+%d-%m-%Y')
+  
+  for property in "${argAry1[@]}"
+  do
+    echo
+    local actualValue=$(cat $EJB_CONFIG_WAS_SVN |sed 's/ //g' | grep $property | cut -d"|" -f4 | sed "s#$LOCAL_EJB_URL#$REMOTE_EJB_URL_WAS#g")
+    echo "Pridavam customProperty: $property s value: $actualValue"
+    echo "Je to v poriadku?(y/N)"
+    read adder
+    if [ "$adder" == "y" ] || [ "$adder" == "Y" ] || [ "$adder" == "yes" ] || [ "$adder" == "yES" ] || [ "$adder" == "Yes" ] || [ "$adder" == "YES" ] 
+    then
+      ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "$GLOBAL_WAS_BIN_DIR/wsadmin.sh -lang jython -user $GLOBAL_WAS_USER -password $GLOBAL_WAS_PASS -c \"AdminConfig.create('J2EEResourceProperty', '(cells/$GLOBAL_WAS_CELL|resources.xml#$J2EE_ENV_ENTRY)', '[[name \\\"$property\\\"] [type \\\"java.lang.String\\\"] [description \\\"Added $datum\\\"] [value \\\"$actualValue\\\"] [required \\\"false\\\"]]')\""
+    fi
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+  done
+  echo -e "$BLUE EJBconfigy boli pridane $NC"
+  read
+}
+
+addEJBCustomPropertyPortal(){
+  findJ2EEResourcePorpertyPortal
+  declare -a argAry1=("${!1}")
+  local datum=$(date '+%d-%m-%Y')
+  echo "" > tmpJython.py
+  
+  for property in "${argAry1[@]}"
+  do
+    echo
+    local actualValue=$(cat $EJB_CONFIG_PORTAL_SVN |sed 's/ //g' | grep $property | cut -d"|" -f4 | sed "s#$LOCAL_EJB_URL#$REMOTE_EJB_URL_PORTAL#g")
+    echo "Pridavam customProperty: $property s value: $actualValue"
+    echo "Je to v poriadku?(y/N)"
+    read adder
+    if [ "$adder" == "y" ] || [ "$adder" == "Y" ] || [ "$adder" == "yes" ] || [ "$adder" == "yES" ] || [ "$adder" == "Yes" ] || [ "$adder" == "YES" ] 
+    then
+      echo "AdminConfig.create('J2EEResourceProperty', '(cells/$GLOBAL_PORTAL_CELL|resources.xml#$J2EE_ENV_ENTRY)', '[[name \"$property\"] [type \"java.lang.String\"] [description \"Added $datum\"] [value \"$actualValue\"] [required \"false\"]]')" >> tmpJython.py
+    fi
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+  done
+  echo "AdminConfig.save()" >> tmpJython.py
+  scp tmpJython.py $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:./
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "/opt/IBM/WebSphere/PortalServer/bin/wpscript.sh -lang jython -user $GLOBAL_PORTAL_USER -password $GLOBAL_PORTAL_PASS -f tmpJython.py "
+  
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm tmpJython.py"
+  rm tmpJython.py
+  echo -e "$BLUE EJBconfigy boli pridane $NC"
+  read
+}
+
+updateEJBCustomPropertyWAS(){
+  local EJB_CONGIF_FULL_FROM_RESOURCE_XML=$(ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "cat $GLOBAL_WAS_SERVER_DIR/profiles/$GLOBAL_WAS_PROFILE/config/cells/$GLOBAL_WAS_CELL/resources.xml")
+  local datum=$(date '+%d-%m-%Y')
+  
+  declare -a argAry1=("${!1}")
+  for property in "${argAry1[@]}"
+  do
+    local remoteValue=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$property"  | sed 's/value="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    local remoteJ2EEResourceProperty=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$property"  | sed 's/xmi:id="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    echo
+    local actualValue=$(cat $EJB_CONFIG_WAS_SVN |sed 's/ //g' | grep $property | cut -d"|" -f4 | sed "s#$LOCAL_EJB_URL#$REMOTE_EJB_URL_WAS#g")
+    echo "Menim customProperty: $property"
+    echo "Stara hodnota: -$remoteValue-"
+    echo "Nova hodnota: -$actualValue-"
+    echo "Je to v poriadku?(y/N)"
+    read updater
+    if [ "$updater" == "y" ] || [ "$updater" == "Y" ] || [ "$updater" == "yes" ] || [ "$updater" == "yES" ] || [ "$updater" == "Yes" ] || [ "$updater" == "YES" ] 
+    then
+      ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "$GLOBAL_WAS_BIN_DIR/wsadmin.sh -lang jython -user $GLOBAL_WAS_USER -password $GLOBAL_WAS_PASS -c \"AdminConfig.modify('(cells/$GLOBAL_WAS_CELL|resources.xml#$remoteJ2EEResourceProperty)', '[[name \\\"$property\\\"] [type \\\"java.lang.String\\\"] [description \\\"Updated $datum\\\"] [value \\\"$actualValue\\\"] [required \\\"false\\\"]]')\""
+    fi
+  done
+  echo -e "$BLUE EJBconfigy boli Upravene $NC"
+  read
+}
+
+updateEJBCustomPropertyPortal(){
+  local EJB_CONGIF_FULL_FROM_RESOURCE_XML=$(ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "cat $GLOBAL_WAS_SERVER_DIR/../wp_profile/config/cells/$GLOBAL_PORTAL_CELL/resources.xml")
+  local datum=$(date '+%d-%m-%Y')
+  declare -a argAry1=("${!1}")
+  echo "" > tmpJython.py
+  for property in "${argAry1[@]}"
+  do
+    local remoteValue=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$property"  | sed 's/value="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    local remoteJ2EEResourceProperty=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$property"  | sed 's/xmi:id="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    echo
+    local actualValue=$(cat $EJB_CONFIG_PORTAL_SVN |sed 's/ //g' | grep $property | cut -d"|" -f4 | sed "s#$LOCAL_EJB_URL#$REMOTE_EJB_URL_PORTAL#g")
+    echo "Menim customProperty: $property"
+    echo "Stara hodnota: -$remoteValue-"
+    echo "Nova hodnota: -$actualValue-"
+    echo "Je to v poriadku?(y/N)"
+    read updater
+    if [ "$updater" == "y" ] || [ "$updater" == "Y" ] || [ "$updater" == "yes" ] || [ "$updater" == "yES" ] || [ "$updater" == "Yes" ] || [ "$updater" == "YES" ] 
+    then
+	echo "AdminConfig.modify('(cells/$GLOBAL_PORTAL_CELL|resources.xml#$remoteJ2EEResourceProperty)', '[[name \"$property\"] [type \"java.lang.String\"] [description \"Updated $datum\"] [value \"$actualValue\"] [required \"false\"]]')" >> tmpJython.py
+    fi
+  done
+  echo "AdminConfig.save()" >> tmpJython.py
+  scp tmpJython.py $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:./
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "/opt/IBM/WebSphere/PortalServer/bin/wpscript.sh -lang jython -user $GLOBAL_PORTAL_USER -password $GLOBAL_PORTAL_PASS -f tmpJython.py "
+  
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm tmpJython.py"
+  rm tmpJython.py
+  echo -e "$BLUE EJBconfigy boli upravene $NC"
+  read
+}
+
+removeEJBCustomPropertyWAS(){
+  local EJB_CONGIF_FULL_FROM_RESOURCE_XML=$(ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "cat $GLOBAL_WAS_SERVER_DIR/profiles/$GLOBAL_WAS_PROFILE/config/cells/$GLOBAL_WAS_CELL/resources.xml")
+  
+  declare -a argAry1=("${!1}")
+  for property in "${argAry1[@]}"
+  do
+    local remoteValue=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$property"  | sed 's/value="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    local remoteJ2EEResourceProperty=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$property"  | sed 's/xmi:id="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    echo
+    echo "Mazem customProperty: $property"
+    echo "Stara hodnota: -$remoteValue-"
+    echo "Je to v poriadku?(y/N)"
+    read deleter
+    if [ "$deleter" == "y" ] || [ "$deleter" == "Y" ] || [ "$deleter" == "yes" ] || [ "$deleter" == "yES" ] || [ "$deleter" == "Yes" ] || [ "$deleter" == "YES" ] 
+    then
+      ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "$GLOBAL_WAS_BIN_DIR/wsadmin.sh -lang jython -user $GLOBAL_WAS_USER -password $GLOBAL_WAS_PASS -c \"AdminConfig.remove('(cells/$GLOBAL_WAS_CELL|resources.xml#$remoteJ2EEResourceProperty)')\""
+    fi
+  done
+  echo -e "$BLUE EJBconfigy boli Zmazane $NC"
+  read
+}
+
+removeEJBCustomPropertyPortal(){
+  local EJB_CONGIF_FULL_FROM_RESOURCE_XML=$(ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "cat $GLOBAL_WAS_SERVER_DIR/../wp_profile/config/cells/$GLOBAL_PORTAL_CELL/resources.xml")
+  declare -a argAry1=("${!1}")
+  echo "" > tmpJython.py
+  for property in "${argAry1[@]}"
+  do
+    local remoteValue=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$property"  | sed 's/value="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    local remoteJ2EEResourceProperty=$( echo "$EJB_CONGIF_FULL_FROM_RESOURCE_XML" | grep "$property"  | sed 's/xmi:id="/#/'| cut -d"#" -f2 | cut -d"\"" -f1)
+    echo
+    echo "Mazem customProperty: $property"
+    echo "Stara hodnota: -$remoteValue-"
+    echo "Je to v poriadku?(y/N)"
+    read deleter
+    if [ "$deleter" == "y" ] || [ "$deleter" == "Y" ] || [ "$deleter" == "yes" ] || [ "$deleter" == "yES" ] || [ "$deleter" == "Yes" ] || [ "$deleter" == "YES" ] 
+    then
+	echo "AdminConfig.remove('(cells/$GLOBAL_PORTAL_CELL|resources.xml#$remoteJ2EEResourceProperty)')" >> tmpJython.py
+    fi
+  done
+  echo "AdminConfig.save()" >> tmpJython.py
+  scp tmpJython.py $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:./
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "/opt/IBM/WebSphere/PortalServer/bin/wpscript.sh -lang jython -user $GLOBAL_PORTAL_USER -password $GLOBAL_PORTAL_PASS -f tmpJython.py "
+  
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm tmpJython.py"
+  rm tmpJython.py
+  echo -e "$BLUE EJBconfigy boli zmazane $NC"
+  read
+}
+
+addEJBCustomProperty(){
+  clear
+  if [ "$2" == "portal" ] 
+  then
+    addEJBCustomPropertyPortal $1
+  else
+    addEJBCustomPropertyWAS $1
+  fi
+  
+}
+
+updateEJBCustomProperty(){
+  clear
+  if [ "$2" == "portal" ] 
+  then
+    updateEJBCustomPropertyPortal $1
+  else
+    updateEJBCustomPropertyWAS $1
+  fi
+}
+
+removeEJBCustomProperty(){
+  clear
+  if [ "$2" == "portal" ] 
+  then
+    removeEJBCustomPropertyPortal $1
+  else
+    removeEJBCustomPropertyWAS $1
+  fi
+}
+
+removeOldJars(){
+  local RMIAMSECURITY="$GLOBAL_PORTAL_SERVER_DIR/shared/ext/IsisSecurityProject-*.jar"
+  local RMIAMLOGINFACADE="$GLOBAL_PORTAL_SERVER_DIR/shared/ext/IamBusinessServiceFacadeForCustomLoginProject-*.jar"
+  local RMIAMLOGIN="$GLOBAL_PORTAL_SERVER_DIR/shared/app/IamAuthCustomLoginModuleProject-*.jar"
+  local RMCOMMONUTILS="$GLOBAL_WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
+  local RMEJBPORTAL="$GLOBAL_WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
+  local RMEJBWAS="$GLOBAL_WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
+  local RMCOMMONUTILSWAS="$GLOBAL_WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
+  echo "Navrhujem mazat veci:"
+  echo $RMIAMSECURITY;
+  echo $RMIAMLOGINFACADE;
+  echo $RMIAMLOGIN;
+  echo $RMCOMMONUTILS;
+  echo $RMEJBPORTAL;
+  echo $RMEJBWAS;
+  echo $RMCOMMONUTILSWAS;
+  echo
+  echo "Je to v poriadku?(y/N)"
+  read remover
+  if [ "$remover" == "y" ] || [ "$remover" == "Y" ] || [ "$remover" == "yes" ] || [ "$remover" == "yES" ] || [ "$remover" == "Yes" ] || [ "$remover" == "YES" ] 
+  then
+    echo "Mazem"
+    removeOldJarsWithoutUser #Call nonInteraction function from Core script
+  else
+    echo "ok"
+  fi
+}
+
+sendJars(){
+  removeOldJars
+  echo  
+  echo 'Sending ...'
+  sendJarsWithoutUser #Call nonInteraction function from Core script
+  echo
+  echo -e "$BLUE Stlac enter pre pokracovanie $NC"
+  read
+}
+
+guiDeploy(){
+  clear 
+  echo -n "Zadajte cestu ku konfiguracnemu suboru na deploy aplikacie: "
+  read -er filePath
+  RUN_CONTROL_CONFIG=true;
+  deploy $filePath
+}
+
+guiDeploy(){
+  clear 
+  echo -n "Zadajte cestu ku konfiguracnemu suboru na deploy war: "
+  read -er filePath
+  RUN_CONTROL_CONFIG=true;
+  warDeploy $filePath
+}
+
+
+menu(){
+  echo -e "$BLUE $BOLD Vyberte moznost: $NC
+  
+  1) Premazanie a odoslanie JAR suborov
+  2) Kontrola EJB nastaveni
+  3) Deployment EAR podla konfiguracie
+  4) Deployment WAR podla konfiguracie
+  
+  0) Exit
+  
+  Zadajte volbu: "
+  read -n1 option
+  
+  case $option in
+    1) sendJars	;;
+    2) ejbMenu ;;
+    3) guiDeploy ;;
+    4) guiWarDeploy ;;
+    0) clear; exit ;;
+    *) clear;
+       echo -e "$RED Zle zadana moznost $NC"
+       menu;
+  esac
+  menu
+}
