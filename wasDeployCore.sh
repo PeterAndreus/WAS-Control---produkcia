@@ -16,9 +16,33 @@ UNDERLINE="\033[4m"
 
 RUN_CONTROL_CONFIG=false;
 
+#-------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------HELPERS----------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------
+
+show_help(){
+  echo -e " $BOLD usage: $NC wasCoreDeploy.sh <options> \n\n
+    \t $BOLD -d,  --deploy <config_file> $NC
+      \t\t deploy with configuration from application config file\n
+    \t $BOLD -v,  --validate \n $NC
+      \t\t run deployment with validation of configuration file \n 
+    \t $BOLD -j, --jar-files \n $NC
+      \t\t replace shared libraries on both servers \n
+    \t $BOLD -g,  --gui \n $NC
+      \t\t show GUI \n
+    \t $BOLD -h,  --help $NC
+      \t\t show this help \n
+  "
+}
+
 upload() {
  scp $1 $WAS_HOST_USER@$WAS_HOST:$2
 }
+
+
+#-------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------DEPLOYMENT-------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------
 
 genericDeploy(){  
   ssh $WAS_HOST_USER@$WAS_HOST "$WAS_BIN_DIR/wsadmin.sh -lang jython -user $WAS_USER -password $WAS_PASS -c \"AdminApp.update('$1', 'app', '[ -operation update -contents $WAS_REMOTE_TMP_DIR/$APP_EAR -nopreCompileJSPs -installed.ear.destination \\\$(APP_INSTALL_ROOT)/$WAS_CELL -distributeApp -nouseMetaDataFromBinary -nodeployejb -createMBeansForResources -noreloadEnabled -nodeployws -validateinstall warn -noprocessEmbeddedConfig -filepermission .*\.dll=755#.*\.so=755#.*\.a=755#.*\.sl=755 -noallowDispatchRemoteInclude -noallowServiceRemoteInclude -asyncRequestDispatchType DISABLED -nouseAutoLink -noenableClientModule -clientMode isolated -novalidateSchema $2]' ) \"" 
@@ -70,16 +94,57 @@ genericPreDeploy(){
   
 }
 
-show_help(){
-  echo -e " $BOLD usage: $NC wasCoreDeploy.sh <options> \n\n
-    \t $BOLD -d,  --deploy <config_file> $NC
-      \t\t deploy with configuration from application config file\n
-    \t $BOLD -h,  --help $NC
-      \t\t show this help \n
-    \t $BOLD -v,  --validate \n $NC
-      \t\t run deployment with validation of configuration file \n
-  "
+deploy(){  
+  loadConfig $1
+  
+  if [ $RUN_CONTROL_CONFIG == "true" ]
+  then
+   controlConfig
+  fi
+   
+  genericPreDeploy
+  postDeploy
 }
+
+
+#-------------------------------------------------------------------------------------------------------------------
+#----------------------------------------------------JAR------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------
+
+
+removeOldJarsWithoutUser(){
+  echo -e "\nREMOVE old JAR files\n"
+  local RMIAMSECURITY="$GLOBAL_PORTAL_SERVER_DIR/shared/ext/IsisSecurityProject-*.jar"
+  local RMIAMLOGINFACADE="$GLOBAL_PORTAL_SERVER_DIR/shared/ext/IamBusinessServiceFacadeForCustomLoginProject-*.jar"
+  local RMIAMLOGIN="$GLOBAL_PORTAL_SERVER_DIR/shared/app/IamAuthCustomLoginModuleProject-*.jar"
+  local RMCOMMONUTILS="$GLOBAL_WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
+  local RMEJBPORTAL="$GLOBAL_WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
+  local RMEJBWAS="$GLOBAL_WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
+  local RMCOMMONUTILSWAS="$GLOBAL_WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMIAMSECURITY"
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMIAMLOGINFACADE"
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMIAMLOGIN"
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMCOMMONUTILS"
+  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMEJBPORTAL"
+  ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "rm -fvr $RMCOMMONUTILSWASL"
+  ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "rm -fvr $RMEJBWAS"
+  ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "rm -fvr $RMCOMMONUTILSWAS"
+}
+
+sendJarsWithoutUser(){
+  echo -e "\nSEND new JAR files\n"
+  scp -v $SHARED_JAR_FOLDER/IsisSecurityProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/ext/
+  scp -v $SHARED_JAR_FOLDER/IamBusinessServiceFacadeForCustomLoginProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/ext/
+  scp -v $SHARED_JAR_FOLDER/IamAuthCustomLoginModuleProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/app/
+  scp -v $SHARED_JAR_FOLDER/CommonUtilsProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
+  scp -v $SHARED_JAR_FOLDER/EjbConfigProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
+  scp -v $SHARED_JAR_FOLDER/CommonUtilsProject-$GLOBAL_VERSION.jar $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
+  scp -v $SHARED_JAR_FOLDER/EjbConfigProject-$GLOBAL_VERSION.jar $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST$GLOBAL_WAS_SERVER_DIR/lib/ext/
+}
+
+#-------------------------------------------------------------------------------------------------------------------
+#----------------------------------------------CONFIG AND SETUP-----------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------
 
 loadConfig(){
   if [ -f $SCRIPT_DIR/global.config ];
@@ -95,7 +160,7 @@ loadConfig(){
 controlConfig(){
   local variablesForCheck=("$WAS_HOST" "WAS_HOST" "$WAS_HOST_USER" "WAS_HOST_USER" "$WAS_PROFILE" "WAS_PROFILE" "$WAS_CELL" "WAS_CELL" "$WAS_USER" "WAS_USER" "$WAS_PASS" "WAS_PASS" "$WAS_REMOTE_TMP_DIR" "WAS_REMOTE_TMP_DIR" "$WAS_BIN_DIR" "WAS_BIN_DIR" "$PORTAL_HOST" "PORTAL_HOST" "$PORTAL_HOST_USER" "PORTAL_HOST_USER" "$PORTAL_USER" "PORTAL_USER" "$PORTAL_PASS" "PORTAL_PASS" "$APP_VERSION" "APP_VERSION" "$APP_EAR" "APP_EAR" "$APP_PATH_TO_EAR" "APP_PATH_TO_EAR" "$APP_NAME" "APP_NAME");
   
-  local validate=true;
+  local validate=true
   
   for (( t=0; t<${#variablesForCheck[@]}; t+=2 ))
   do
@@ -104,7 +169,7 @@ controlConfig(){
       value:$NE \"${variablesForCheck[$t]}\"  "  
     if [ -z "${variablesForCheck[$t]}" ] 
     then 
-      validate=false;
+      validate=false
       echo -e "$RED Variable ${variablesForCheck[$t+1]} is $BOLD NOT$NE$RED set! $NC"
     fi
   done
@@ -113,14 +178,14 @@ controlConfig(){
   then 
     if [ -z "$WAS_NODE" -o -z "$WAS_SERVER" ] 
     then
-      validate=false;
+      validate=false
       echo -e "$RED Cluster nor server/node is set! $NC"
     fi
   fi
   
   if [ -z "$MODULES_TO_SERVER_NAMES" -o -z "$MODULES_TO_SERVER_VALUES" ] 
   then 
-    validate=false;
+    validate=false
     echo -e "$RED Modules to deploy are not set! $NC"
   fi
   
@@ -128,21 +193,45 @@ controlConfig(){
   then
     echo -e "$RED \n Press ENTER to exit $NC \n"
     read
-    exit;
+    exit
+  else
+    clear
   fi
 }
 
-deploy(){  
-  loadConfig $1
+
+setupAndRunGUI(){  
+  setupGlobalConfig
   
-  if [ $RUN_CONTROL_CONFIG == "true" ]
+  if [ -f $SCRIPT_DIR/guiConfig ];
   then
-   controlConfig
+    . $SCRIPT_DIR/guiConfig
+    menu
+  else
+    echo -e "$RED Script file guiConfig not found! $NC"
+    echo -e "$RED \n Press ENTER to exit $NC \n"
+    read
+    exit
   fi
-   
-  genericPreDeploy
-  postDeploy
 }
+
+setupGlobalConfig(){
+ if [ -f $SCRIPT_DIR/global.config ];
+  then
+    . $SCRIPT_DIR/global.config
+  else
+    echo -e "Global configuration does not exist."
+    echo -e "$RED \n Press ENTER to exit $NC \n"
+    read
+    exit
+  fi
+}
+
+
+#-------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------MAIN-------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------
+
 
 main(){
   SCRIPT_DIR="$(dirname "$0")"
@@ -189,7 +278,15 @@ main(){
         --validate )
 	    RUN_CONTROL_CONFIG=true;  
 	    ;;
-	   
+	-g| --gui)
+	    setupAndRunGUI;
+	    ;;
+	-j| --jar-files)
+	    setupGlobalConfig
+	    removeOldJarsWithoutUser
+	    sendJarsWithoutUser
+	    ;;
+	    
             
         --)
 	    echo -e "No option set";
