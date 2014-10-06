@@ -23,12 +23,14 @@ RUN_CONTROL_CONFIG=false;
 show_help(){
   echo -e " $BOLD usage: $NC wasCoreDeploy.sh <options> \n\n
     \t $BOLD -d,  --deploy <config_file> $NC
-      \t\t deploy with configuration from application config file\n
-    \t $BOLD -v,  --validate \n $NC
+      \t\t deploy EAR application with configuration from application config file\n
+    \t $BOLD -w,  --deploy-war <config_file> $NC
+      \t\t deploy WAR application with configuration from application config file\n
+    \t $BOLD -v,  --validate  $NC
       \t\t run deployment with validation of configuration file \n 
-    \t $BOLD -j, --jar-files \n $NC
+    \t $BOLD -j, --jar-files  $NC
       \t\t replace shared libraries on both servers \n
-    \t $BOLD -g,  --gui \n $NC
+    \t $BOLD -g,  --gui  $NC
       \t\t show GUI \n
     \t $BOLD -h,  --help $NC
       \t\t show this help \n
@@ -57,8 +59,8 @@ postDeploy(){
 
 genericPreDeploy(){
 
-  echo -e "UPLOADING $APP_EAR from $APP_PATH_TO_EAR"
-  upload "$APP_PATH_TO_EAR" "$WAS_REMOTE_TMP_DIR/$APP_EAR"
+  echo -e "UPLOADING $APP_EAR from $APP_PATH"
+  upload "$APP_PATH/$APP_EAR" "$WAS_REMOTE_TMP_DIR/$APP_EAR"
 
   
   local finalMapForIBM="-MapModulesToServers [";
@@ -106,6 +108,20 @@ deploy(){
   postDeploy
 }
 
+warDeploy(){
+  loadConfig $1
+  
+  if [ $RUN_CONTROL_CONFIG == "true" ]
+  then
+   controlWarConfig
+  fi
+  
+  scp $APP_PATH/$APP_NAME $PORTAL_HOST_USER@$PORTAL_HOST:$PORTAL_SERVER_DIR/installableApps/
+ 
+  echo "- DEPLOY START"
+  ssh $PORTAL_HOST_USER@$PORTAL_HOST "$PORTAL_SERVER_DIR/bin/xmlaccess.sh" -in "$XMLACESSS_PATH/update.xmlaccess" -user $PORTAL_USER -pwd $PORTAL_PASS -url $WPS_ADMIN_URL -out "$XMLACESSS_PATH/deploymentresults.xmlaccess"
+
+}
 
 #-------------------------------------------------------------------------------------------------------------------
 #----------------------------------------------------JAR------------------------------------------------------------
@@ -133,13 +149,13 @@ removeOldJarsWithoutUser(){
 
 sendJarsWithoutUser(){
   echo -e "\nSEND new JAR files\n"
-  scp -v $SHARED_JAR_FOLDER/IsisSecurityProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/ext/
-  scp -v $SHARED_JAR_FOLDER/IamBusinessServiceFacadeForCustomLoginProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/ext/
-  scp -v $SHARED_JAR_FOLDER/IamAuthCustomLoginModuleProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/app/
-  scp -v $SHARED_JAR_FOLDER/CommonUtilsProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
-  scp -v $SHARED_JAR_FOLDER/EjbConfigProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
-  scp -v $SHARED_JAR_FOLDER/CommonUtilsProject-$GLOBAL_VERSION.jar $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
-  scp -v $SHARED_JAR_FOLDER/EjbConfigProject-$GLOBAL_VERSION.jar $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST$GLOBAL_WAS_SERVER_DIR/lib/ext/
+  scp $SHARED_JAR_FOLDER/IsisSecurityProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/ext/
+  scp $SHARED_JAR_FOLDER/IamBusinessServiceFacadeForCustomLoginProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/ext/
+  scp $SHARED_JAR_FOLDER/IamAuthCustomLoginModuleProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/app/
+  scp $SHARED_JAR_FOLDER/CommonUtilsProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
+  scp $SHARED_JAR_FOLDER/EjbConfigProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
+  scp $SHARED_JAR_FOLDER/CommonUtilsProject-$GLOBAL_VERSION.jar $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
+  scp $SHARED_JAR_FOLDER/EjbConfigProject-$GLOBAL_VERSION.jar $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST$GLOBAL_WAS_SERVER_DIR/lib/ext/
 }
 
 #-------------------------------------------------------------------------------------------------------------------
@@ -157,8 +173,35 @@ loadConfig(){
   . $1
 }
 
+controlWarConfig(){
+  local variablesForCheck=("$PORTAL_HOST" "PORTAL_HOST" "$PORTAL_HOST_USER" "PORTAL_HOST_USER" "$PORTAL_USER" "PORTAL_USER" "$PORTAL_PASS" "PORTAL_PASS" "$PORTAL_SERVER_DIR" "PORTAL_SERVER_DIR" "$APP_VERSION" "APP_VERSION" "$APP_NAME" "APP_NAME" "$APP_PATH" "APP_PATH" "$XMLACESSS_PATH" "XMLACESSS_PATH" "$WPS_ADMIN_URL" "WPS_ADMIN_URL");
+  
+  local validate=true
+  
+  for (( t=0; t<${#variablesForCheck[@]}; t+=2 ))
+  do
+  echo -e "
+  $BOLD Variable:$NE ${variablesForCheck[$t+1]}$BOLD  	
+      value:$NE \"${variablesForCheck[$t]}\"  "  
+    if [ -z "${variablesForCheck[$t]}" ] 
+    then 
+      validate=false
+      echo -e "$RED Variable ${variablesForCheck[$t+1]} is $BOLD NOT$NE$RED set! $NC"
+    fi
+  done
+  
+  if [ $validate == "false" ]
+  then
+    echo -e "$RED \n Press ENTER to exit $NC \n"
+    read
+    exit
+  else
+    clear
+  fi
+}
+
 controlConfig(){
-  local variablesForCheck=("$WAS_HOST" "WAS_HOST" "$WAS_HOST_USER" "WAS_HOST_USER" "$WAS_PROFILE" "WAS_PROFILE" "$WAS_CELL" "WAS_CELL" "$WAS_USER" "WAS_USER" "$WAS_PASS" "WAS_PASS" "$WAS_REMOTE_TMP_DIR" "WAS_REMOTE_TMP_DIR" "$WAS_BIN_DIR" "WAS_BIN_DIR" "$PORTAL_HOST" "PORTAL_HOST" "$PORTAL_HOST_USER" "PORTAL_HOST_USER" "$PORTAL_USER" "PORTAL_USER" "$PORTAL_PASS" "PORTAL_PASS" "$APP_VERSION" "APP_VERSION" "$APP_EAR" "APP_EAR" "$APP_PATH_TO_EAR" "APP_PATH_TO_EAR" "$APP_NAME" "APP_NAME");
+  local variablesForCheck=("$WAS_HOST" "WAS_HOST" "$WAS_HOST_USER" "WAS_HOST_USER" "$WAS_PROFILE" "WAS_PROFILE" "$WAS_CELL" "WAS_CELL" "$WAS_USER" "WAS_USER" "$WAS_PASS" "WAS_PASS" "$WAS_REMOTE_TMP_DIR" "WAS_REMOTE_TMP_DIR" "$WAS_BIN_DIR" "WAS_BIN_DIR" "$PORTAL_HOST" "PORTAL_HOST" "$PORTAL_HOST_USER" "PORTAL_HOST_USER" "$PORTAL_USER" "PORTAL_USER" "$PORTAL_PASS" "PORTAL_PASS" "$APP_VERSION" "APP_VERSION" "$APP_EAR" "APP_EAR" "$APP_PATH" "APP_PATH" "$APP_NAME" "APP_NAME");
   
   local validate=true
   
@@ -206,6 +249,7 @@ setupAndRunGUI(){
   if [ -f $SCRIPT_DIR/guiConfig ];
   then
     . $SCRIPT_DIR/guiConfig
+    clear
     menu
   else
     echo -e "$RED Script file guiConfig not found! $NC"
@@ -241,7 +285,7 @@ main(){
             show_help
             exit
             ;;
-        -d|--deploy)
+        -d| --deploy)
             if [ "$2" ]; then
                 file=$2
                 deploy $file
@@ -260,6 +304,25 @@ main(){
             show_help
             exit 1
             ;;
+        -w| --deploy-war)
+	  if [ "$2" ]; then
+                file=$2
+                warDeploy $file
+                shift 2
+                continue
+            else
+                show_help
+                exit 1
+            fi
+            ;;
+        --deploy-war=?*)
+            file=${1#*=} # Delete everything up to "=" and assign the remainder.
+            warDeploy $file
+            ;;
+        --deploy-war=)         # Handle the case of an empty --deploy-war=
+            show_help
+            exit 1
+            ;;
 	-v)
 	    RUN_CONTROL_CONFIG=true;
 	    ;;
@@ -268,6 +331,19 @@ main(){
 	    if [ "$2" ]; then
                 file=$2
                 deploy $file
+                shift 2
+                continue
+            else
+                show_help
+                exit 1
+            fi          
+            ;;
+            
+	-vw | -wv )
+	    RUN_CONTROL_CONFIG=true;  
+	    if [ "$2" ]; then
+                file=$2
+                warDeploy $file
                 shift 2
                 continue
             else
