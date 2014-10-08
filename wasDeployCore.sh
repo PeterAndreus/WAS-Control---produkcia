@@ -163,10 +163,10 @@ sendJarsWithoutUser(){
 #-------------------------------------------------------------------------------------------------------------------
 
 loadConfig(){
-  if [ -f $SCRIPT_DIR/global.config ];
+  if [ -f $WORK_DIR/global.config ];
   then
     echo -e "Global configuration file exists. Mixing in."
-    . $SCRIPT_DIR/global.config
+    . $WORK_DIR/global.config
   else
     echo -e "Global configuration does not exist. Using user configuration ONLY!."
   fi
@@ -246,9 +246,9 @@ controlConfig(){
 setupAndRunGUI(){  
   setupGlobalConfig
   
-  if [ -f $SCRIPT_DIR/guiConfig ];
+  if [ -f $WORK_DIR/guiConfig ];
   then
-    . $SCRIPT_DIR/guiConfig
+    . $WORK_DIR/guiConfig
     clear
     menu
   else
@@ -260,9 +260,9 @@ setupAndRunGUI(){
 }
 
 setupGlobalConfig(){
- if [ -f $SCRIPT_DIR/global.config ];
+ if [ -f $WORK_DIR/global.config ];
   then
-    . $SCRIPT_DIR/global.config
+    . $WORK_DIR/global.config
   else
     echo -e "Global configuration does not exist."
     echo -e "$RED \n Press ENTER to exit $NC \n"
@@ -278,7 +278,7 @@ setupGlobalConfig(){
 
 
 main(){
-  SCRIPT_DIR="$(dirname "$0")"
+  WORK_DIR="$(pwd)"
   while :; do
     case $1 in
         -h|-\?|--help)
