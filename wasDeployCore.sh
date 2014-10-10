@@ -289,6 +289,10 @@ setupAndRunGUI(){
 setupGlobalConfig(){
  if [ -f $WORK_DIR/global.config ];
   then
+    if [ $RUN_CONTROL_CONFIG == "true" ]
+    then
+      controlGlobalConfig
+    fi
     . $WORK_DIR/global.config
   else
     echo -e "Global configuration does not exist."
