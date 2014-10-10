@@ -26,7 +26,7 @@ show_help(){
       \t\t deploy EAR application with configuration from application config file\n
     \t $BOLD -w,  --deploy-war <config_file> $NC
       \t\t deploy WAR application with configuration from application config file\n
-    \t $BOLD -v,  --validate  $NC
+    \t $BOLD -v,  --validate  <deployment options>$NC
       \t\t run deployment with validation of configuration file \n 
     \t $BOLD -j, --jar-files  $NC
       \t\t replace shared libraries on both servers \n
@@ -101,7 +101,7 @@ deploy(){
   
   if [ $RUN_CONTROL_CONFIG == "true" ]
   then
-   controlConfig
+   controlEarConfig
   fi
    
   genericPreDeploy
@@ -130,32 +130,32 @@ warDeploy(){
 
 removeOldJarsWithoutUser(){
   echo -e "\nREMOVE old JAR files\n"
-  local RMIAMSECURITY="$GLOBAL_PORTAL_SERVER_DIR/shared/ext/IsisSecurityProject-*.jar"
-  local RMIAMLOGINFACADE="$GLOBAL_PORTAL_SERVER_DIR/shared/ext/IamBusinessServiceFacadeForCustomLoginProject-*.jar"
-  local RMIAMLOGIN="$GLOBAL_PORTAL_SERVER_DIR/shared/app/IamAuthCustomLoginModuleProject-*.jar"
-  local RMCOMMONUTILS="$GLOBAL_WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
-  local RMEJBPORTAL="$GLOBAL_WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
-  local RMEJBWAS="$GLOBAL_WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
-  local RMCOMMONUTILSWAS="$GLOBAL_WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
-  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMIAMSECURITY"
-  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMIAMLOGINFACADE"
-  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMIAMLOGIN"
-  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMCOMMONUTILS"
-  ssh $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST "rm -fvr $RMEJBPORTAL"
-  ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "rm -fvr $RMCOMMONUTILSWASL"
-  ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "rm -fvr $RMEJBWAS"
-  ssh $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST "rm -fvr $RMCOMMONUTILSWAS"
+  local RMIAMSECURITY="$DEF_PORTAL_SERVER_DIR/shared/ext/IsisSecurityProject-*.jar"
+  local RMIAMLOGINFACADE="$DEF_PORTAL_SERVER_DIR/shared/ext/IamBusinessServiceFacadeForCustomLoginProject-*.jar"
+  local RMIAMLOGIN="$DEF_PORTAL_SERVER_DIR/shared/app/IamAuthCustomLoginModuleProject-*.jar"
+  local RMCOMMONUTILS="$DEF_WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
+  local RMEJBPORTAL="$DEF_WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
+  local RMEJBWAS="$DEF_WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
+  local RMCOMMONUTILSWAS="$DEF_WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
+  ssh $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST "rm -fvr $RMIAMSECURITY"
+  ssh $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST "rm -fvr $RMIAMLOGINFACADE"
+  ssh $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST "rm -fvr $RMIAMLOGIN"
+  ssh $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST "rm -fvr $RMCOMMONUTILS"
+  ssh $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST "rm -fvr $RMEJBPORTAL"
+  ssh $DEF_WAS_HOST_USER@$DEF_WAS_HOST "rm -fvr $RMCOMMONUTILSWASL"
+  ssh $DEF_WAS_HOST_USER@$DEF_WAS_HOST "rm -fvr $RMEJBWAS"
+  ssh $DEF_WAS_HOST_USER@$DEF_WAS_HOST "rm -fvr $RMCOMMONUTILSWAS"
 }
 
 sendJarsWithoutUser(){
   echo -e "\nSEND new JAR files\n"
-  scp $SHARED_JAR_FOLDER/IsisSecurityProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/ext/
-  scp $SHARED_JAR_FOLDER/IamBusinessServiceFacadeForCustomLoginProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/ext/
-  scp $SHARED_JAR_FOLDER/IamAuthCustomLoginModuleProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_PORTAL_SERVER_DIR/shared/app/
-  scp $SHARED_JAR_FOLDER/CommonUtilsProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
-  scp $SHARED_JAR_FOLDER/EjbConfigProject-$GLOBAL_VERSION.jar $GLOBAL_PORTAL_HOST_USER@$GLOBAL_PORTAL_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
-  scp $SHARED_JAR_FOLDER/CommonUtilsProject-$GLOBAL_VERSION.jar $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST:$GLOBAL_WAS_SERVER_DIR/lib/ext/
-  scp $SHARED_JAR_FOLDER/EjbConfigProject-$GLOBAL_VERSION.jar $GLOBAL_WAS_HOST_USER@$GLOBAL_WAS_HOST$GLOBAL_WAS_SERVER_DIR/lib/ext/
+  scp $SHARED_JAR_FOLDER/IsisSecurityProject-$DEF_VERSION.jar $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST:$DEF_PORTAL_SERVER_DIR/shared/ext/
+  scp $SHARED_JAR_FOLDER/IamBusinessServiceFacadeForCustomLoginProject-$DEF_VERSION.jar $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST:$DEF_PORTAL_SERVER_DIR/shared/ext/
+  scp $SHARED_JAR_FOLDER/IamAuthCustomLoginModuleProject-$DEF_VERSION.jar $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST:$DEF_PORTAL_SERVER_DIR/shared/app/
+  scp $SHARED_JAR_FOLDER/CommonUtilsProject-$DEF_VERSION.jar $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST:$DEF_WAS_SERVER_DIR/lib/ext/
+  scp $SHARED_JAR_FOLDER/EjbConfigProject-$DEF_VERSION.jar $DEF_PORTAL_HOST_USER@$DEF_PORTAL_HOST:$DEF_WAS_SERVER_DIR/lib/ext/
+  scp $SHARED_JAR_FOLDER/CommonUtilsProject-$DEF_VERSION.jar $DEF_WAS_HOST_USER@$DEF_WAS_HOST:$DEF_WAS_SERVER_DIR/lib/ext/
+  scp $SHARED_JAR_FOLDER/EjbConfigProject-$DEF_VERSION.jar $DEF_WAS_HOST_USER@$DEF_WAS_HOST$DEF_WAS_SERVER_DIR/lib/ext/
 }
 
 #-------------------------------------------------------------------------------------------------------------------
@@ -200,8 +200,8 @@ controlWarConfig(){
   fi
 }
 
-controlConfig(){
-  local variablesForCheck=("$WAS_HOST" "WAS_HOST" "$WAS_HOST_USER" "WAS_HOST_USER" "$WAS_PROFILE" "WAS_PROFILE" "$WAS_CELL" "WAS_CELL" "$WAS_USER" "WAS_USER" "$WAS_PASS" "WAS_PASS" "$WAS_REMOTE_TMP_DIR" "WAS_REMOTE_TMP_DIR" "$WAS_BIN_DIR" "WAS_BIN_DIR" "$PORTAL_HOST" "PORTAL_HOST" "$PORTAL_HOST_USER" "PORTAL_HOST_USER" "$PORTAL_USER" "PORTAL_USER" "$PORTAL_PASS" "PORTAL_PASS" "$APP_VERSION" "APP_VERSION" "$APP_EAR" "APP_EAR" "$APP_PATH" "APP_PATH" "$APP_NAME" "APP_NAME");
+controlEarConfig(){
+  local variablesForCheck=("$WAS_HOST" "WAS_HOST" "$WAS_HOST_USER" "WAS_HOST_USER" "$WAS_PROFILE" "WAS_PROFILE" "$WAS_CELL" "WAS_CELL" "$WAS_USER" "WAS_USER" "$WAS_PASS" "WAS_PASS" "$WAS_REMOTE_TMP_DIR" "WAS_REMOTE_TMP_DIR" "$WAS_BIN_DIR" "WAS_BIN_DIR"  "$APP_VERSION" "APP_VERSION" "$APP_EAR" "APP_EAR" "$APP_PATH" "APP_PATH" "$APP_NAME" "APP_NAME");
   
   local validate=true
   
@@ -231,6 +231,33 @@ controlConfig(){
     validate=false
     echo -e "$RED Modules to deploy are not set! $NC"
   fi
+  
+  if [ $validate == "false" ]
+  then
+    echo -e "$RED \n Press ENTER to exit $NC \n"
+    read
+    exit
+  else
+    clear
+  fi
+}
+
+controlGlobalConfig(){
+local variablesForCheck=("$DEF_VERSION" "DEF_VERSION" "$DEF_WAS_HOST" "DEF_WAS_HOST" "$DEF_WAS_HOST_USER" "DEF_WAS_HOST_USER" "$DEF_WAS_PROFILE" "DEF_WAS_PROFILE" "$DEF_WAS_CELL" "DEF_WAS_CELL" "$DEF_WAS_USER" "DEF_WAS_USER" "$DEF_WAS_PASS" "DEF_WAS_PASS" "$DEF_WAS_BIN_DIR" "DEF_WAS_BIN_DIR" "$DEF_WAS_SERVER_DIR" "DEF_WAS_SERVER_DIR" "$DEF_PORTAL_HOST" "DEF_PORTAL_HOST" "$DEF_PORTAL_HOST_USER" "DEF_PORTAL_HOST_USER" "$DEF_PORTAL_USER" "DEF_PORTAL_USER" "$DEF_PORTAL_PASS" "DEF_PORTAL_PASS" "$DEF_PORTAL_CELL" "DEF_PORTAL_CELL" "$DEF_PORTAL_SERVER_DIR" "DEF_PORTAL_SERVER_DIR" "$SHARED_JAR_FOLDER" "SHARED_JAR_FOLDER" "$PATH_TO_EJB_FILES" "PATH_TO_EJB_FILES" "$LOCAL_EJB_URL" "LOCAL_EJB_URL" "$REMOTE_EJB_URL_PORTAL" "REMOTE_EJB_URL_PORTAL" "$REMOTE_EJB_URL_WAS" "REMOTE_EJB_URL_WAS");
+  
+  local validate=true
+  
+  for (( t=0; t<${#variablesForCheck[@]}; t+=2 ))
+  do
+  echo -e "
+  $BOLD Variable:$NE ${variablesForCheck[$t+1]}$BOLD  	
+      value:$NE \"${variablesForCheck[$t]}\"  "  
+    if [ -z "${variablesForCheck[$t]}" ] 
+    then 
+      validate=false
+      echo -e "$RED Variable ${variablesForCheck[$t+1]} is $BOLD NOT$NE$RED set! $NC"
+    fi
+  done
   
   if [ $validate == "false" ]
   then
