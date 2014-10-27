@@ -341,40 +341,12 @@ removeEJBCustomProperty(){
   fi
 }
 
-removeOldJars(){
-  local RMIAMSECURITY="$PORTAL_SERVER_DIR/shared/ext/IsisSecurityProject-*.jar"
-  local RMIAMLOGINFACADE="$PORTAL_SERVER_DIR/shared/ext/IamBusinessServiceFacadeForCustomLoginProject-*.jar"
-  local RMIAMLOGIN="$PORTAL_SERVER_DIR/shared/app/IamAuthCustomLoginModuleProject-*.jar"
-  local RMCOMMONUTILS="$WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
-  local RMEJBPORTAL="$WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
-  local RMEJBWAS="$WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
-  local RMCOMMONUTILSWAS="$WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
-  echo "Navrhujem mazat veci:"
-  echo $RMIAMSECURITY;
-  echo $RMIAMLOGINFACADE;
-  echo $RMIAMLOGIN;
-  echo $RMCOMMONUTILS;
-  echo $RMEJBPORTAL;
-  echo $RMEJBWAS;
-  echo $RMCOMMONUTILSWAS;
-  echo
-  echo "Je to v poriadku?(y/N)"
-  read remover
-  if [ "$remover" == "y" ] || [ "$remover" == "Y" ] || [ "$remover" == "yes" ] || [ "$remover" == "yES" ] || [ "$remover" == "Yes" ] || [ "$remover" == "YES" ] 
-  then
-    echo "Mazem"
-    removeOldJarsWithoutUser #Call nonInteraction function from Core script
-  else
-    echo "ok"
-  fi
-}
-
 sendJars(){
-  removeOldJars
-  echo  
-  echo 'Sending ...'
-  sendJarsWithoutUser #Call nonInteraction function from Core script
-  echo
+  clear 
+  echo -n "Zadajte cestu ku konfiguracnemu suboru na zmazanie a odoslanie .jar suborov: "
+  read -er filePath
+  RUN_CONTROL_CONFIG=true;
+  parseJarConfig $filePath
   echo -e "$BLUE Stlac enter pre pokracovanie $NC"
   read
 }
@@ -397,6 +369,7 @@ guiDeploy(){
 
 
 menu(){
+  clear
   echo -e "$BLUE $BOLD Vyberte moznost: $NC
   
   1) Premazanie a odoslanie JAR suborov

@@ -127,35 +127,38 @@ warDeploy(){
 #----------------------------------------------------JAR------------------------------------------------------------
 #-------------------------------------------------------------------------------------------------------------------
 
-
-removeOldJarsWithoutUser(){
-  echo -e "\nREMOVE old JAR files\n"
-  local RMIAMSECURITY="$PORTAL_SERVER_DIR/shared/ext/IsisSecurityProject-*.jar"
-  local RMIAMLOGINFACADE="$PORTAL_SERVER_DIR/shared/ext/IamBusinessServiceFacadeForCustomLoginProject-*.jar"
-  local RMIAMLOGIN="$PORTAL_SERVER_DIR/shared/app/IamAuthCustomLoginModuleProject-*.jar"
-  local RMCOMMONUTILS="$WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
-  local RMEJBPORTAL="$WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
-  local RMEJBWAS="$WAS_SERVER_DIR/lib/ext/EjbConfigProject-*.jar"
-  local RMCOMMONUTILSWAS="$WAS_SERVER_DIR/lib/ext/CommonUtilsProject-*.jar"
-  ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fvr $RMIAMSECURITY"
-  ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fvr $RMIAMLOGINFACADE"
-  ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fvr $RMIAMLOGIN"
-  ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fvr $RMCOMMONUTILS"
-  ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fvr $RMEJBPORTAL"
-  ssh $WAS_HOST_USER@$WAS_HOST "rm -fvr $RMCOMMONUTILSWASL"
-  ssh $WAS_HOST_USER@$WAS_HOST "rm -fvr $RMEJBWAS"
-  ssh $WAS_HOST_USER@$WAS_HOST "rm -fvr $RMCOMMONUTILSWAS"
+removeOldJar(){
+  ssh $3 "rm -fvr $4/$1" < /dev/null
 }
 
-sendJarsWithoutUser(){
-  echo -e "\nSEND new JAR files\n"
-  scp $SHARED_JAR_FOLDER/IsisSecurityProject-$VERSION.jar $PORTAL_HOST_USER@$PORTAL_HOST:$PORTAL_SERVER_DIR/shared/ext/
-  scp $SHARED_JAR_FOLDER/IamBusinessServiceFacadeForCustomLoginProject-$VERSION.jar $PORTAL_HOST_USER@$PORTAL_HOST:$PORTAL_SERVER_DIR/shared/ext/
-  scp $SHARED_JAR_FOLDER/IamAuthCustomLoginModuleProject-$VERSION.jar $PORTAL_HOST_USER@$PORTAL_HOST:$PORTAL_SERVER_DIR/shared/app/
-  scp $SHARED_JAR_FOLDER/CommonUtilsProject-$VERSION.jar $PORTAL_HOST_USER@$PORTAL_HOST:$WAS_SERVER_DIR/lib/ext/
-  scp $SHARED_JAR_FOLDER/EjbConfigProject-$VERSION.jar $PORTAL_HOST_USER@$PORTAL_HOST:$WAS_SERVER_DIR/lib/ext/
-  scp $SHARED_JAR_FOLDER/CommonUtilsProject-$VERSION.jar $WAS_HOST_USER@$WAS_HOST:$WAS_SERVER_DIR/lib/ext/
-  scp $SHARED_JAR_FOLDER/EjbConfigProject-$VERSION.jar $WAS_HOST_USER@$WAS_HOST$WAS_SERVER_DIR/lib/ext/
+sendNewJar(){
+  scp $2/$1 $3:$4 < /dev/null
+}
+
+replaceJarWithoutUser(){
+  eval tmp=(\${${1}[@]})
+  if [ ${#tmp[@]} == 4 ]
+  then
+    removeOldJar ${tmp[0]} ${tmp[1]} ${tmp[2]} ${tmp[3]}
+    sendNewJar ${tmp[0]} ${tmp[1]} ${tmp[2]} ${tmp[3]}
+  fi
+}
+
+parseJarConfig(){
+  . $1
+  while read i || [[ -n "$i" ]]
+  do
+    if [[ $i != \#* ]]
+    then
+      eval name=$(echo $i | cut -d"=" -f1)
+      if [ ! -z "$i" ]
+      then
+	declare -p $name | grep -q '^declare \-a' && replaceJarWithoutUser $name
+      fi
+    fi
+  done < $1
+  
+  unset name
 }
 
 #-------------------------------------------------------------------------------------------------------------------
@@ -388,13 +391,27 @@ main(){
 	-g| --gui)
 	    setupAndRunGUI;
 	    ;;
-	-j| --jar-files)
-	    setupGlobalConfig
-	    removeOldJarsWithoutUser
-	    sendJarsWithoutUser
-	    ;;
-	    
-            
+	-j| --jar-files)	    
+            if [ "$2" ]; then
+		setupGlobalConfig
+                jar_config=$2
+                parseJarConfig $jar_config
+                shift 2
+                continue
+            else
+                show_help
+                exit 1
+            fi
+            ;;            
+        --jar-files=?*)
+            jar_config=${1#*=} # Delete everything up to "=" and assign the remainder.
+            setupGlobalConfig
+            parseJarConfig $jar_config
+            ;;
+        --jar-filesr=)         # Handle the case of an empty --deploy-war=
+            show_help
+            exit 1
+            ;;
         --)
 	    echo -e "No option set";
             shift
