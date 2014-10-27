@@ -26,10 +26,17 @@ show_help(){
       \t\t deploy EAR application with configuration from application config file\n
     \t $BOLD -w,  --deploy-war <config_file> $NC
       \t\t deploy WAR application with configuration from application config file\n
-    \t $BOLD -v,  --validate  <deployment options>$NC
+    \t $BOLD -v<deployment options>$NC
       \t\t run deployment with validation of configuration file \n 
-    \t $BOLD -j, --jar-files  $NC
-      \t\t replace shared libraries on both servers \n
+      \t\t$UNDERLINE EXAMPLE:$NC wasDeployCore.sh -vd app.config \n 
+    \t $BOLD -v,  --validate <validate options>$NC
+      \t\t run validation of configuration file \n 
+      \t\t$UNDERLINE OPTIONS:$NC 
+      \t\t$BOLD ear <config_file> $NC- control Ear configuration file 
+      \t\t$BOLD war <config_file> $NC- control War configuration file 
+      \t\t$BOLD jar <config_file> $NC- control Jar configuration file \n
+    \t $BOLD -j, --jar-files <config_file>$NC
+      \t\t replace shared libraries defined by configuration file \n
     \t $BOLD -g,  --gui  $NC
       \t\t show GUI \n
     \t $BOLD -h,  --help $NC
@@ -198,8 +205,6 @@ controlWarConfig(){
     echo -e "$RED \n Press ENTER to exit $NC \n"
     read
     exit
-  else
-    clear
   fi
 }
 
@@ -240,8 +245,6 @@ controlEarConfig(){
     echo -e "$RED \n Press ENTER to exit $NC \n"
     read
     exit
-  else
-    clear
   fi
 }
 
@@ -267,11 +270,31 @@ local variablesForCheck=("$VERSION" "VERSION" "$WAS_HOST" "WAS_HOST" "$WAS_HOST_
     echo -e "$RED \n Press ENTER to exit $NC \n"
     read
     exit
-  else
-    clear
   fi
 }
 
+controlParser(){
+
+  if [ -f $WORK_DIR/global.config ];
+  then
+    . $WORK_DIR/global.config
+  fi
+    
+  . $2
+  case "$1" in
+    "app" | "ear")
+      controlEarConfig
+      ;;
+    "war")
+      controlWarConfig
+      ;;
+    "jar")
+      echo "Nothing to control"
+      ;;
+  esac  
+  echo -e "$RED \n Press ENTER to continue $NC \n"
+  read
+}
 
 setupAndRunGUI(){  
   setupGlobalConfig
@@ -357,8 +380,17 @@ main(){
             show_help
             exit 1
             ;;
-	-v)
+	-v |  --validate )
 	    RUN_CONTROL_CONFIG=true;
+	    if [ "$2" ] && [ "$3" ]
+	    then
+		controlParser $2 $3
+		shift 3
+		continue
+	    else	      
+                show_help
+                exit 1
+	    fi
 	    ;;
 	-vd | -dv )
 	    RUN_CONTROL_CONFIG=true;  
@@ -385,9 +417,6 @@ main(){
                 exit 1
             fi          
             ;;
-        --validate )
-	    RUN_CONTROL_CONFIG=true;  
-	    ;;
 	-g| --gui)
 	    setupAndRunGUI;
 	    ;;
