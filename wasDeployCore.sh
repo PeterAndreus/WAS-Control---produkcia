@@ -123,10 +123,24 @@ warDeploy(){
    controlWarConfig
   fi
   
+  echo -e "<request xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"PortalConfig_1.4.xsd\" type=\"update\" create-oids=\"true\">
+	  <portal action=\"locate\">
+	    <web-app action=\"update\" active=\"true\" uid=\"$APP_WEBMOD\">
+	      <url>file:///\$server_root\$/installableApps/$APP_NAME</url>
+	      <portlet-app action=\"update\" active=\"true\" uid=\"$APP_MODULE\"></portlet-app>
+	    </web-app>	
+	  </portal>
+	</request>" > tmpUpdate.xmlaccess
+	
   scp $APP_PATH/$APP_NAME $PORTAL_HOST_USER@$PORTAL_HOST:$PORTAL_SERVER_DIR/installableApps/
+  scp tmpUpdate.xmlaccess $PORTAL_HOST_USER@$PORTAL_HOST:$PORTAL_SERVER_DIR/installableApps/
  
   echo "- DEPLOY START"
-  ssh $PORTAL_HOST_USER@$PORTAL_HOST "$PORTAL_SERVER_DIR/bin/xmlaccess.sh" -in "$XMLACESSS_PATH/update.xmlaccess" -user $PORTAL_USER -pwd $PORTAL_PASS -url $WPS_ADMIN_URL -out "$XMLACESSS_PATH/deploymentresults.xmlaccess"
+  ssh $PORTAL_HOST_USER@$PORTAL_HOST "$PORTAL_SERVER_DIR/bin/xmlaccess.sh" -in "$PORTAL_SERVER_DIR/installableApps/tmpUpdate.xmlaccess" -user $PORTAL_USER -pwd $PORTAL_PASS -url $WPS_ADMIN_URL -out "$PORTAL_SERVER_DIR/deploymentresults.xmlaccess"  
+  
+  echo "- CLEANING"
+  ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fv $PORTAL_SERVER_DIR/installableApps/$APP_NAME"
+  ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fv $PORTAL_SERVER_DIR/installableApps/tmpUpdate.xmlaccess"
 
 }
 
@@ -149,6 +163,7 @@ replaceJarWithoutUser(){
     removeOldJar ${tmp[0]} ${tmp[1]} ${tmp[2]} ${tmp[3]}
     sendNewJar ${tmp[0]} ${tmp[1]} ${tmp[2]} ${tmp[3]}
   fi
+  unset tmp
 }
 
 parseJarConfig(){
@@ -184,7 +199,7 @@ loadConfig(){
 }
 
 controlWarConfig(){
-  local variablesForCheck=("$PORTAL_HOST" "PORTAL_HOST" "$PORTAL_HOST_USER" "PORTAL_HOST_USER" "$PORTAL_USER" "PORTAL_USER" "$PORTAL_PASS" "PORTAL_PASS" "$PORTAL_SERVER_DIR" "PORTAL_SERVER_DIR" "$APP_VERSION" "APP_VERSION" "$APP_NAME" "APP_NAME" "$APP_PATH" "APP_PATH" "$XMLACESSS_PATH" "XMLACESSS_PATH" "$WPS_ADMIN_URL" "WPS_ADMIN_URL");
+  local variablesForCheck=("$PORTAL_HOST" "PORTAL_HOST" "$PORTAL_HOST_USER" "PORTAL_HOST_USER" "$PORTAL_USER" "PORTAL_USER" "$PORTAL_PASS" "PORTAL_PASS" "$PORTAL_SERVER_DIR" "PORTAL_SERVER_DIR" "$APP_VERSION" "APP_VERSION" "$APP_NAME" "APP_NAME" "$APP_PATH" "APP_PATH" "$APP_MODULE" "APP_MODULE" "$APP_WEBMOD" "APP_WEBMOD" "$WPS_ADMIN_URL" "WPS_ADMIN_URL");
   
   local validate=true
   
@@ -299,13 +314,13 @@ controlParser(){
 setupAndRunGUI(){  
   setupGlobalConfig
   
-  if [ -f $WORK_DIR/guiConfig ];
+  if [ -f $BASEDIR/guiConfig ];
   then
-    . $WORK_DIR/guiConfig
+    . $BASEDIR/guiConfig
     clear
     menu
   else
-    echo -e "$RED Script file guiConfig not found! $NC"
+    echo -e "$RED Script file guiConfig not found in $BASEDIR ! $NC"
     echo -e "$RED \n Press ENTER to exit $NC \n"
     read
     exit
@@ -336,6 +351,7 @@ setupGlobalConfig(){
 
 main(){
   WORK_DIR="$(pwd)"
+  BASEDIR=$(dirname $0)
   while :; do
     case $1 in
         -h|-\?|--help)
@@ -395,7 +411,7 @@ main(){
 	-vd | -dv )
 	    RUN_CONTROL_CONFIG=true;  
 	    if [ "$2" ]; then
-                file=$2
+                file=$2 
                 deploy $file
                 shift 2
                 continue

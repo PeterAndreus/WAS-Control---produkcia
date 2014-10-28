@@ -1,0 +1,8 @@
+<request xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="PortalConfig_1.4.xsd" type="update" create-oids="true">
+	  <portal action="locate">
+	    <web-app action="update" active="true" uid="MetisApp.webmod">
+	      <url>file:///$server_root$/installableApps/MetisGuiProject-1.21.0.war</url>
+	      <portlet-app action="update" active="true" uid="MetisApp"></portlet-app>
+	    </web-app>	
+	  </portal>
+	</request>
