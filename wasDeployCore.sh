@@ -141,6 +141,7 @@ warDeploy(){
   echo "- CLEANING"
   ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fv $PORTAL_SERVER_DIR/installableApps/$APP_NAME"
   ssh $PORTAL_HOST_USER@$PORTAL_HOST "rm -fv $PORTAL_SERVER_DIR/installableApps/tmpUpdate.xmlaccess"
+  rm -fv tmpUpdate.xmlaccess
 
 }
 
