@@ -165,7 +165,7 @@ addEJBCustomPropertyWAS(){
     echo "Pridavam customProperty: $property s value: $actualValue"
     echo "Je to v poriadku?(y/N)"
     read adder
-    if [ "$adder" == "y" ] || [ "$adder" == "Y" ] || [ "$adder" == "yes" ] || [ "$adder" == "yES" ] || [ "$adder" == "Yes" ] || [ "$adder" == "YES" ] 
+    if [[ $adder == [yY][eE][sS] ]]  || [[ $adder == [yY] ]]
     then
       ssh $WAS_HOST_USER@$WAS_HOST "$WAS_BIN_DIR/wsadmin.sh -lang jython -user $WAS_USER -password $WAS_PASS -c \"AdminConfig.create('J2EEResourceProperty', '(cells/$WAS_CELL|resources.xml#$J2EE_ENV_ENTRY)', '[[name \\\"$property\\\"] [type \\\"java.lang.String\\\"] [description \\\"Added $datum\\\"] [value \\\"$actualValue\\\"] [required \\\"false\\\"]]')\""
     fi
@@ -188,7 +188,7 @@ addEJBCustomPropertyPortal(){
     echo "Pridavam customProperty: $property s value: $actualValue"
     echo "Je to v poriadku?(y/N)"
     read adder
-    if [ "$adder" == "y" ] || [ "$adder" == "Y" ] || [ "$adder" == "yes" ] || [ "$adder" == "yES" ] || [ "$adder" == "Yes" ] || [ "$adder" == "YES" ] 
+    if [[ $adder == [yY][eE][sS] ]]  || [[ $adder == [yY] ]]
     then
       echo "AdminConfig.create('J2EEResourceProperty', '(cells/$PORTAL_CELL|resources.xml#$J2EE_ENV_ENTRY)', '[[name \"$property\"] [type \"java.lang.String\"] [description \"Added $datum\"] [value \"$actualValue\"] [required \"false\"]]')" >> tmpJython.py
     fi
@@ -220,7 +220,7 @@ updateEJBCustomPropertyWAS(){
     echo "Nova hodnota: -$actualValue-"
     echo "Je to v poriadku?(y/N)"
     read updater
-    if [ "$updater" == "y" ] || [ "$updater" == "Y" ] || [ "$updater" == "yes" ] || [ "$updater" == "yES" ] || [ "$updater" == "Yes" ] || [ "$updater" == "YES" ] 
+    if [[ $updater == [yY][eE][sS] ]]  || [[ $updater == [yY] ]]
     then
       ssh $WAS_HOST_USER@$WAS_HOST "$WAS_BIN_DIR/wsadmin.sh -lang jython -user $WAS_USER -password $WAS_PASS -c \"AdminConfig.modify('(cells/$WAS_CELL|resources.xml#$remoteJ2EEResourceProperty)', '[[name \\\"$property\\\"] [type \\\"java.lang.String\\\"] [description \\\"Updated $datum\\\"] [value \\\"$actualValue\\\"] [required \\\"false\\\"]]')\""
     fi
@@ -245,7 +245,7 @@ updateEJBCustomPropertyPortal(){
     echo "Nova hodnota: -$actualValue-"
     echo "Je to v poriadku?(y/N)"
     read updater
-    if [ "$updater" == "y" ] || [ "$updater" == "Y" ] || [ "$updater" == "yes" ] || [ "$updater" == "yES" ] || [ "$updater" == "Yes" ] || [ "$updater" == "YES" ] 
+    if [[ $updater == [yY][eE][sS] ]]  || [[ $updater == [yY] ]]
     then
 	echo "AdminConfig.modify('(cells/$PORTAL_CELL|resources.xml#$remoteJ2EEResourceProperty)', '[[name \"$property\"] [type \"java.lang.String\"] [description \"Updated $datum\"] [value \"$actualValue\"] [required \"false\"]]')" >> tmpJython.py
     fi
@@ -273,7 +273,7 @@ removeEJBCustomPropertyWAS(){
     echo "Stara hodnota: -$remoteValue-"
     echo "Je to v poriadku?(y/N)"
     read deleter
-    if [ "$deleter" == "y" ] || [ "$deleter" == "Y" ] || [ "$deleter" == "yes" ] || [ "$deleter" == "yES" ] || [ "$deleter" == "Yes" ] || [ "$deleter" == "YES" ] 
+    if [[ $deleter == [yY][eE][sS] ]]  || [[ $deleter == [yY] ]]
     then
       ssh $WAS_HOST_USER@$WAS_HOST "$WAS_BIN_DIR/wsadmin.sh -lang jython -user $WAS_USER -password $WAS_PASS -c \"AdminConfig.remove('(cells/$WAS_CELL|resources.xml#$remoteJ2EEResourceProperty)')\""
     fi
@@ -295,7 +295,7 @@ removeEJBCustomPropertyPortal(){
     echo "Stara hodnota: -$remoteValue-"
     echo "Je to v poriadku?(y/N)"
     read deleter
-    if [ "$deleter" == "y" ] || [ "$deleter" == "Y" ] || [ "$deleter" == "yes" ] || [ "$deleter" == "yES" ] || [ "$deleter" == "Yes" ] || [ "$deleter" == "YES" ] 
+    if [[ $deleter == [yY][eE][sS] ]]  || [[ $deleter == [yY] ]]
     then
 	echo "AdminConfig.remove('(cells/$PORTAL_CELL|resources.xml#$remoteJ2EEResourceProperty)')" >> tmpJython.py
     fi
