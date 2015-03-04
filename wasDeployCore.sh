@@ -171,7 +171,7 @@ parseJarConfig(){
   . $1
   while read i || [[ -n "$i" ]]
   do
-    if [[ $i != \#* ]]
+    if [[ $i != \#* ]] && [[ $i == *"="* ]]
     then
       eval name=$(echo $i | cut -d"=" -f1)
       if [ ! -z "$i" ]
